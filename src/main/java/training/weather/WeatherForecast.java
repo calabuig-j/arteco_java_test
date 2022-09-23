@@ -1,45 +1,87 @@
 package training.weather;
 
-import com.google.api.client.http.GenericUrl;
-import com.google.api.client.http.HttpRequest;
-import com.google.api.client.http.HttpRequestFactory;
 import com.google.api.client.http.javanet.NetHttpTransport;
-import java.io.IOException;
-import java.text.SimpleDateFormat;
+import training.weather.connection.Http;
+import training.weather.exceptions.DayWithoutInfoException;
+import training.weather.interfaces.OnError;
+import training.weather.interfaces.OnSuccess;
+import training.weather.model.*;
+import training.weather.repository.CityHttpRepository;
+import training.weather.repository.DailyHttpRepository;
+import training.weather.repository.interfaces.CityRepository;
+import training.weather.repository.interfaces.DailyRepository;
+import training.weather.usecase.GetCityInformationByNameUseCase;
+import training.weather.usecase.GetWeatherInformationByLatitudeAndLongitudeUseCase;
+
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Date;
-import org.json.JSONArray;
-import org.json.JSONObject;
+import java.util.Optional;
 
 public class WeatherForecast {
 
-	public static String getCityWeather(String city, Date datetime) throws IOException {
-		if (datetime == null) {
-			datetime = new Date();
+	public void getCityWeather(String city, Date datetime, OnSuccess<String> onSuccess, OnError onError) {
+		Date date = Optional.ofNullable(datetime).orElse(new Date());
+		if (checkDaysAfter(date, 6)) {
+			Http http = new Http(new NetHttpTransport().createRequestFactory());
+			CityRepository cityRepository = new CityHttpRepository(http);
+			GetCityInformationByNameUseCase cityInformationByNameUseCase =
+					new GetCityInformationByNameUseCase(cityRepository);
+
+			GetCityInformationRequest request = new GetCityInformationRequest(city);
+			cityInformationByNameUseCase.invoke(request, new OnSuccess<City>() {
+				@Override
+				public void run(City cityModel) {
+					getForecastInformationByDay(http, cityModel, date, onSuccess, onError);
+				}
+			}, new OnError() {
+				@Override
+				public void run(ErrorModel error) {
+					System.out.println(error.getMessage());
+				}
+			});
+
 		}
-		if (datetime.before(new Date(new Date().getTime() + (1000 * 60 * 60 * 24 * 6)))) {
-			HttpRequestFactory rf = new NetHttpTransport().createRequestFactory();
-			HttpRequest req = rf
-				.buildGetRequest(new GenericUrl("https://geocode.xyz/" + city + "?json=1"));
-			String r = req.execute().parseAsString();
-			JSONObject object = new JSONObject(r);
-			String longt = object.get("longt").toString();
-			String latt = object.get("latt").toString();
-			rf = new NetHttpTransport().createRequestFactory();
-			req = rf.buildGetRequest(new GenericUrl("https://api.open-meteo.com/v1/forecast?latitude=" +
-                    latt + "&longitude=" + longt + "&daily=weathercode&current_weather=true&timezone=Europe%2FBerlin"));
-			r = req.execute().parseAsString();
-			JSONArray dailyResults = new JSONObject(r).getJSONObject("daily").getJSONArray("time");
-			JSONArray weatherCodeResults = new JSONObject(r).getJSONObject("daily").getJSONArray("weathercode");
-			for (int i = 0; i < dailyResults.length(); i++) {
-				if (
-				        new SimpleDateFormat("yyyy-MM-dd")
-                                .format(datetime)
-                                .equals(dailyResults.get(i).toString())
-                ) {
-					return ForecastEnum.getEnumByCode(new Double(weatherCodeResults.get(i).toString()).intValue()).getDescription();
+	}
+
+	public void getForecastInformationByDay(Http http, City cityModel, Date datetime,
+												   OnSuccess<String> onSuccess, OnError onError) {
+		DailyRepository dailyRepository = new DailyHttpRepository(http);
+		GetWeatherInformationByLatitudeAndLongitudeUseCase weatherInformationByLatitudeAndLongitudeUseCase =
+				new GetWeatherInformationByLatitudeAndLongitudeUseCase(dailyRepository);
+
+		GetDailyInformationRequest request = new GetDailyInformationRequest(cityModel.getLatt(),
+				cityModel.getLongt());
+
+		weatherInformationByLatitudeAndLongitudeUseCase.invoke(request, new OnSuccess<WeatherDaysList>() {
+			@Override
+			public void run(WeatherDaysList model) {
+				try {
+					String weatherString = getForecast(model, datetime);
+					onSuccess.run(weatherString);
+				} catch (DayWithoutInfoException e) {
+					onError.run(new ErrorModel(e.getMessage()));
 				}
 			}
-		}
-		return "";
+		}, new OnError() {
+			@Override
+			public void run(ErrorModel error) {
+				System.out.println(error.getMessage());
+			}
+		});
+	}
+
+	private String getForecast(WeatherDaysList weatherDaysList, Date datetime) throws DayWithoutInfoException {
+		LocalDate transformedDatetime = datetime.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+		return weatherDaysList.getWeatherDays().stream()
+			.filter(e -> e.getDay().isEqual(transformedDatetime))
+			.map(e -> ForecastEnum.getEnumByCode(e.getWeather().intValue()).getDescription())
+			.findFirst().orElseThrow( () -> new DayWithoutInfoException("Day wihtout information"));
+	}
+
+	private boolean checkDaysAfter(Date date, int days) {
+		int daysTomilisec = 1000 * 60 * 60 * 24 * days;
+		Date dateAddDays = new Date(new Date().getTime() + daysTomilisec);
+		return date.before(dateAddDays);
 	}
 }
