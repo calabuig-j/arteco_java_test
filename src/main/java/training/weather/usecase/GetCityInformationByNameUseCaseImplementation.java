@@ -6,12 +6,13 @@ import training.weather.interfaces.OnSuccess;
 import training.weather.model.City;
 import training.weather.model.GetCityInformationRequest;
 import training.weather.repository.interfaces.CityRepository;
+import training.weather.usecase.interfaces.GetCityInformationByNameUseCase;
 
-public class GetCityInformationByNameUseCase {
+public class GetCityInformationByNameUseCaseImplementation implements GetCityInformationByNameUseCase {
 
     private CityRepository repository;
 
-    public GetCityInformationByNameUseCase(CityRepository repository) {
+    public GetCityInformationByNameUseCaseImplementation(CityRepository repository) {
         this.repository = repository;
     }
 

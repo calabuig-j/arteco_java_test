@@ -7,12 +7,13 @@ import training.weather.model.GetDailyInformationRequest;
 import training.weather.model.WeatherDay;
 import training.weather.model.WeatherDaysList;
 import training.weather.repository.interfaces.DailyRepository;
+import training.weather.usecase.interfaces.GetWeatherInformationByLatitudeAndLongitudeUseCase;
 
-public class GetWeatherInformationByLatitudeAndLongitudeUseCase {
+public class GetWeatherInformationByLatitudeAndLongitudeUseCaseImplementation implements GetWeatherInformationByLatitudeAndLongitudeUseCase {
 
     private DailyRepository repository;
 
-    public GetWeatherInformationByLatitudeAndLongitudeUseCase(DailyRepository dailyRepository) {
+    public GetWeatherInformationByLatitudeAndLongitudeUseCaseImplementation(DailyRepository dailyRepository) {
         this.repository = dailyRepository;
     }
 
