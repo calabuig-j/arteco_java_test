@@ -5,6 +5,11 @@ public class CityEntity {
     private String latt;
     private String longt;
 
+    public CityEntity(String latt, String longt) {
+        this.latt = latt;
+        this.longt = longt;
+    }
+
     public String getLatt() {
         return latt;
     }
