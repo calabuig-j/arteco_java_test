@@ -1,17 +1,13 @@
 package training.weather;
 
-import com.google.api.client.http.javanet.NetHttpTransport;
-import training.weather.connection.Http;
 import training.weather.exceptions.DayWithoutInfoException;
 import training.weather.interfaces.OnError;
 import training.weather.interfaces.OnSuccess;
 import training.weather.model.*;
-import training.weather.repository.CityHttpRepository;
-import training.weather.repository.DailyHttpRepository;
-import training.weather.repository.interfaces.CityRepository;
-import training.weather.repository.interfaces.DailyRepository;
-import training.weather.usecase.GetCityInformationByNameUseCase;
-import training.weather.usecase.GetWeatherInformationByLatitudeAndLongitudeUseCase;
+import training.weather.usecase.GetCityInformationByNameUseCaseImplementation;
+import training.weather.usecase.GetWeatherInformationByLatitudeAndLongitudeUseCaseImplementation;
+import training.weather.usecase.interfaces.GetCityInformationByNameUseCase;
+import training.weather.usecase.interfaces.GetWeatherInformationByLatitudeAndLongitudeUseCase;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -20,19 +16,23 @@ import java.util.Optional;
 
 public class WeatherForecast {
 
+	private GetCityInformationByNameUseCase cityInformationByNameUseCase;
+	private GetWeatherInformationByLatitudeAndLongitudeUseCase weatherInformationByLatitudeAndLongitudeUseCase;
+
+	public WeatherForecast(GetCityInformationByNameUseCase cityInformationByNameUseCase,
+						   GetWeatherInformationByLatitudeAndLongitudeUseCase weatherInformationByLatitudeAndLongitudeUseCase) {
+		this.cityInformationByNameUseCase = cityInformationByNameUseCase;
+		this.weatherInformationByLatitudeAndLongitudeUseCase = weatherInformationByLatitudeAndLongitudeUseCase;
+	}
+
 	public void getCityWeather(String city, Date datetime, OnSuccess<String> onSuccess, OnError onError) {
 		Date date = Optional.ofNullable(datetime).orElse(new Date());
 		if (checkDaysAfter(date, 6)) {
-			Http http = new Http(new NetHttpTransport().createRequestFactory());
-			CityRepository cityRepository = new CityHttpRepository(http);
-			GetCityInformationByNameUseCase cityInformationByNameUseCase =
-					new GetCityInformationByNameUseCase(cityRepository);
-
 			GetCityInformationRequest request = new GetCityInformationRequest(city);
 			cityInformationByNameUseCase.invoke(request, new OnSuccess<City>() {
 				@Override
 				public void run(City cityModel) {
-					getForecastInformationByDay(http, cityModel, date, onSuccess, onError);
+					getForecastInformationByDay(cityModel, date, onSuccess, onError);
 				}
 			}, new OnError() {
 				@Override
@@ -44,12 +44,8 @@ public class WeatherForecast {
 		}
 	}
 
-	public void getForecastInformationByDay(Http http, City cityModel, Date datetime,
+	public void getForecastInformationByDay(City cityModel, Date datetime,
 												   OnSuccess<String> onSuccess, OnError onError) {
-		DailyRepository dailyRepository = new DailyHttpRepository(http);
-		GetWeatherInformationByLatitudeAndLongitudeUseCase weatherInformationByLatitudeAndLongitudeUseCase =
-				new GetWeatherInformationByLatitudeAndLongitudeUseCase(dailyRepository);
-
 		GetDailyInformationRequest request = new GetDailyInformationRequest(cityModel.getLatt(),
 				cityModel.getLongt());
 
